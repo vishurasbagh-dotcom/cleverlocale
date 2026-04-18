@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Prisma (regenerated: npm run db:generate or postinstall)
+/src/generated/prisma
+
+/src/generated/prisma
