@@ -13,12 +13,14 @@ function createPrisma() {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
-  const pool = globalForPrisma.pool ?? new Pool({ connectionString });
-  if (process.env.NODE_ENV !== "production") globalForPrisma.pool = pool;
-  const adapter = new PrismaPg(pool);
+  if (!globalForPrisma.pool) {
+    globalForPrisma.pool = new Pool({ connectionString });
+  }
+  const adapter = new PrismaPg(globalForPrisma.pool);
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrisma();
+const prismaClient = globalForPrisma.prisma ?? createPrisma();
+globalForPrisma.prisma = prismaClient;
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma = prismaClient;

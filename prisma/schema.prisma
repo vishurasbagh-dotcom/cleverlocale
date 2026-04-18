@@ -1,4 +1,4 @@
-// Cleverlocale — marketplace schema (expand in later iterations)
+// Cleverlocale — multi-vendor marketplace (INR, paise in DB)
 
 generator client {
   provider = "prisma-client"
@@ -9,13 +9,149 @@ datasource db {
   provider = "postgresql"
 }
 
-/// Platform user (customers, vendors, admins — roles added next)
+enum Role {
+  CUSTOMER
+  VENDOR
+  ADMIN
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  vendor Vendor?
+  cart   Cart?
+  orders Order[]
 
   @@map("users")
+}
+
+model Vendor {
+  id        String       @id @default(cuid())
+  userId    String       @unique @map("user_id")
+  shopName  String       @map("shop_name")
+  slug      String       @unique
+  status    VendorStatus @default(PENDING)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products   Product[]
+  orderLines OrderLine[]
+
+  @@map("vendors")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  vendorId     String   @map("vendor_id")
+  categoryId   String?  @map("category_id")
+  name         String
+  slug         String
+  description  String?  @db.Text
+  /// Price in Indian paise (1 INR = 100 paise)
+  pricePaise   Int      @map("price_paise")
+  stock        Int      @default(0)
+  isPublished  Boolean  @default(false) @map("is_published")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  vendor     Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  cartItems  CartItem[]
+  orderLines OrderLine[]
+
+  @@unique([vendorId, slug])
+  @@index([categoryId])
+  @@index([isPublished])
+  @@map("products")
+}
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String @map("cart_id")
+  productId String @map("product_id")
+  quantity  Int
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  userId     String      @map("user_id")
+  status     OrderStatus @default(PENDING)
+  /// Total copied at checkout (paise)
+  totalPaise Int         @map("total_paise")
+  currency   String      @default("INR")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lines OrderLine[]
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderLine {
+  id             String @id @default(cuid())
+  orderId        String @map("order_id")
+  productId      String @map("product_id")
+  vendorId       String @map("vendor_id")
+  productName    String @map("product_name")
+  quantity       Int
+  unitPaise      Int    @map("unit_paise")
+  lineTotalPaise Int    @map("line_total_paise")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  vendor  Vendor  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@map("order_lines")
 }
