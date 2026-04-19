@@ -40,8 +40,10 @@ export function VendorProductForm({ categories }: { categories: { id: string; na
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Category</span>
-        <select name="categoryId" className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-black">
-          <option value="">— None —</option>
+        <select name="categoryId" required className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-black">
+          <option value="" disabled>
+            Select a category
+          </option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}

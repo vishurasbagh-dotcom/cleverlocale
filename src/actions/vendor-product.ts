@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { CANONICAL_CATEGORY_SLUGS } from "@/lib/catalog-categories";
 import { prisma } from "@/lib/prisma";
 
 function slugify(input: string) {
@@ -20,7 +21,7 @@ const productSchema = z.object({
   description: z.string().max(5000).optional(),
   priceRupees: z.coerce.number().positive(),
   stock: z.coerce.number().int().min(0),
-  categoryId: z.string().optional(),
+  categoryId: z.string().min(1, "Select one of the four platform categories."),
   isPublished: z.coerce.boolean().optional(),
 });
 
@@ -47,7 +48,7 @@ export async function createVendorProduct(_prev: ProductFormState, formData: For
     description: formData.get("description") || undefined,
     priceRupees: formData.get("priceRupees"),
     stock: formData.get("stock"),
-    categoryId: formData.get("categoryId") || undefined,
+    categoryId: formData.get("categoryId"),
     isPublished: formData.get("isPublished") === "on",
   });
 
@@ -67,10 +68,18 @@ export async function createVendorProduct(_prev: ProductFormState, formData: For
     return { error: "Another product already uses this URL slug. Change the name or slug." };
   }
 
+  const cat = await prisma.category.findFirst({
+    where: { id: categoryId, slug: { in: [...CANONICAL_CATEGORY_SLUGS] } },
+  });
+  if (!cat) {
+    return { error: "Choose one of the four platform categories (Electronics, Groceries / Provision, Baby Products, PC and Laptops)." };
+  }
+  const resolvedCategoryId = cat.id;
+
   await prisma.product.create({
     data: {
       vendorId: vendor.id,
-      categoryId: categoryId || null,
+      categoryId: resolvedCategoryId,
       name,
       slug,
       description: description || null,

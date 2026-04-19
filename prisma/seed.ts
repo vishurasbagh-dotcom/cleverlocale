@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { CANONICAL_CATEGORIES, CANONICAL_CATEGORY_SLUGS } from "../src/lib/catalog-categories";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -13,77 +14,178 @@ const pool = new Pool({ connectionString });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 async function main() {
-  const passwordHash = await bcrypt.hash("Cleverlocale123!", 12);
+  const passwordHash = await bcrypt.hash("cl@123", 12);
 
-  const admin = await prisma.user.upsert({
+  const adminAccounts = [
+    { email: "admin1@cleverlocale.local", name: "CL Admin 1" },
+    { email: "admin2@cleverlocale.local", name: "CL Admin 2" },
+    { email: "admin3@cleverlocale.local", name: "CL Admin 3" },
+  ] as const;
+
+  for (const a of adminAccounts) {
+    await prisma.user.upsert({
+      where: { email: a.email },
+      update: { passwordHash, role: "ADMIN", name: a.name },
+      create: {
+        email: a.email,
+        passwordHash,
+        name: a.name,
+        role: "ADMIN",
+      },
+    });
+  }
+
+  const vendorAccounts = [
+    { email: "vendor1@cleverlocale.local", name: "Vendor 1", shopName: "Vendor One", slug: "vendor-1" },
+    { email: "vendor2@cleverlocale.local", name: "Vendor 2", shopName: "Vendor Two", slug: "vendor-2" },
+    { email: "vendor3@cleverlocale.local", name: "Vendor 3", shopName: "Vendor Three", slug: "vendor-3" },
+  ] as const;
+
+  for (const v of vendorAccounts) {
+    const vendorUser = await prisma.user.upsert({
+      where: { email: v.email },
+      update: { passwordHash, role: "VENDOR", name: v.name },
+      create: {
+        email: v.email,
+        passwordHash,
+        name: v.name,
+        role: "VENDOR",
+      },
+    });
+
+    await prisma.vendor.upsert({
+      where: { userId: vendorUser.id },
+      update: { shopName: v.shopName, slug: v.slug, status: "APPROVED" },
+      create: {
+        userId: vendorUser.id,
+        shopName: v.shopName,
+        slug: v.slug,
+        status: "APPROVED",
+      },
+    });
+  }
+
+  const vendorPrimary = await prisma.vendor.findUniqueOrThrow({
+    where: { slug: "vendor-1" },
+  });
+
+  const customerAccounts = [
+    { email: "user1@cleverlocale.local", name: "User 1" },
+    { email: "user2@cleverlocale.local", name: "User 2" },
+    { email: "user3@cleverlocale.local", name: "User 3" },
+  ] as const;
+
+  for (const c of customerAccounts) {
+    const user = await prisma.user.upsert({
+      where: { email: c.email },
+      update: { passwordHash, name: c.name, role: "CUSTOMER" },
+      create: {
+        email: c.email,
+        passwordHash,
+        name: c.name,
+        role: "CUSTOMER",
+      },
+    });
+    await prisma.cart.upsert({
+      where: { userId: user.id },
+      update: {},
+      create: { userId: user.id },
+    });
+  }
+
+  /** Legacy single-demo emails (same password `cl@123`) — kept for bookmarks and older docs. */
+  await prisma.user.upsert({
     where: { email: "admin@cleverlocale.local" },
-    update: { passwordHash, role: "ADMIN", name: "Platform Admin" },
+    update: { passwordHash, role: "ADMIN", name: "Platform Admin (legacy)" },
     create: {
       email: "admin@cleverlocale.local",
       passwordHash,
-      name: "Platform Admin",
+      name: "Platform Admin (legacy)",
       role: "ADMIN",
     },
   });
 
-  const vendorUser = await prisma.user.upsert({
+  const legacyVendorUser = await prisma.user.upsert({
     where: { email: "vendor@cleverlocale.local" },
-    update: { passwordHash, role: "VENDOR", name: "Demo Vendor" },
+    update: { passwordHash, role: "VENDOR", name: "Demo Vendor (legacy)" },
     create: {
       email: "vendor@cleverlocale.local",
       passwordHash,
-      name: "Demo Vendor",
+      name: "Demo Vendor (legacy)",
       role: "VENDOR",
     },
   });
 
-  const vendor = await prisma.vendor.upsert({
-    where: { userId: vendorUser.id },
-    update: { shopName: "GreenLeaf Organics", status: "APPROVED" },
+  await prisma.vendor.upsert({
+    where: { userId: legacyVendorUser.id },
+    update: {
+      shopName: "GreenLeaf Organics",
+      slug: "greenleaf-organics",
+      status: "APPROVED",
+    },
     create: {
-      userId: vendorUser.id,
+      userId: legacyVendorUser.id,
       shopName: "GreenLeaf Organics",
       slug: "greenleaf-organics",
       status: "APPROVED",
     },
   });
 
-  const customer = await prisma.user.upsert({
+  const legacyCustomer = await prisma.user.upsert({
     where: { email: "customer@cleverlocale.local" },
-    update: { passwordHash, name: "Demo Customer" },
+    update: { passwordHash, name: "Demo Customer (legacy)", role: "CUSTOMER" },
     create: {
       email: "customer@cleverlocale.local",
       passwordHash,
-      name: "Demo Customer",
+      name: "Demo Customer (legacy)",
       role: "CUSTOMER",
     },
   });
 
   await prisma.cart.upsert({
-    where: { userId: customer.id },
+    where: { userId: legacyCustomer.id },
     update: {},
-    create: { userId: customer.id },
+    create: { userId: legacyCustomer.id },
   });
 
-  const catElectronics = await prisma.category.upsert({
-    where: { slug: "electronics" },
-    update: {},
-    create: {
-      name: "Electronics",
-      slug: "electronics",
-      description: "Gadgets and accessories",
-    },
-  });
+  const categoryBySlug: Record<string, { id: string }> = {};
+  for (const c of CANONICAL_CATEGORIES) {
+    const row = await prisma.category.upsert({
+      where: { slug: c.slug },
+      update: { name: c.name, description: c.description },
+      create: {
+        slug: c.slug,
+        name: c.name,
+        description: c.description,
+      },
+    });
+    categoryBySlug[c.slug] = { id: row.id };
+  }
 
-  const catHome = await prisma.category.upsert({
-    where: { slug: "home-kitchen" },
-    update: {},
-    create: {
-      name: "Home & Kitchen",
-      slug: "home-kitchen",
-      description: "Cookware and decor",
-    },
+  /** Remove categories outside the canonical four (e.g. legacy `home-kitchen`). Clears products' category link first. */
+  const extraCategories = await prisma.category.findMany({
+    where: { slug: { notIn: [...CANONICAL_CATEGORY_SLUGS] } },
+    select: { id: true, slug: true },
   });
+  if (extraCategories.length > 0) {
+    const extraIds = extraCategories.map((c) => c.id);
+    await prisma.product.updateMany({
+      where: { categoryId: { in: extraIds } },
+      data: { categoryId: null },
+    });
+    await prisma.category.deleteMany({
+      where: { id: { in: extraIds } },
+    });
+    console.log(
+      `  Removed ${extraCategories.length} non-canonical categor(ies): ${extraCategories.map((c) => c.slug).join(", ")}`,
+    );
+  }
+
+  const catElectronics = categoryBySlug.electronics;
+  const catGroceries = categoryBySlug["groceries-provision"];
+  if (!catElectronics || !catGroceries) {
+    throw new Error("Seed: expected electronics and groceries-provision categories.");
+  }
 
   const products = [
     {
@@ -108,14 +210,14 @@ async function main() {
       description: "Microwave-safe mugs, 350ml each.",
       pricePaise: 64900,
       stock: 30,
-      categoryId: catHome.id,
+      categoryId: catGroceries.id,
     },
   ];
 
   for (const p of products) {
     await prisma.product.upsert({
       where: {
-        vendorId_slug: { vendorId: vendor.id, slug: p.slug },
+        vendorId_slug: { vendorId: vendorPrimary.id, slug: p.slug },
       },
       update: {
         name: p.name,
@@ -126,7 +228,7 @@ async function main() {
         isPublished: true,
       },
       create: {
-        vendorId: vendor.id,
+        vendorId: vendorPrimary.id,
         categoryId: p.categoryId,
         name: p.name,
         slug: p.slug,
@@ -139,9 +241,14 @@ async function main() {
   }
 
   console.log("Seed complete.");
-  console.log("  Admin:    admin@cleverlocale.local    / Cleverlocale123!");
-  console.log("  Vendor:   vendor@cleverlocale.local   / Cleverlocale123!");
-  console.log("  Customer: customer@cleverlocale.local / Cleverlocale123!");
+  console.log(`  Categories (exactly ${CANONICAL_CATEGORY_SLUGS.length}): ${CANONICAL_CATEGORY_SLUGS.join(", ")}`);
+  console.log("  Password for all accounts below: cl@123");
+  console.log("  CL Admin:  admin1@… admin2@… admin3@… @cleverlocale.local");
+  console.log("  Vendors:   vendor1@… vendor2@… vendor3@… @cleverlocale.local");
+  console.log("  Customers: user1@… user2@… user3@… @cleverlocale.local");
+  console.log("  Legacy (same password): admin@ vendor@ customer@ @cleverlocale.local");
+  console.log("    vendor@ → shop slug greenleaf-organics (no demo products; samples are on vendor-1)");
+  console.log("  Demo products are under vendor slug: vendor-1");
 }
 
 main()

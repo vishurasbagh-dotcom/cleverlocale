@@ -1,8 +1,12 @@
-import { prisma } from "@/lib/prisma";
+import { CANONICAL_CATEGORY_SLUGS } from "@/lib/catalog-categories";
 import { VendorProductForm } from "@/components/vendor-product-form";
+import { prisma } from "@/lib/prisma";
 
 export default async function NewVendorProductPage() {
-  const categories = await prisma.category.findMany({ orderBy: { name: "asc" } });
+  const categories = await prisma.category.findMany({
+    where: { slug: { in: [...CANONICAL_CATEGORY_SLUGS] } },
+    orderBy: { name: "asc" },
+  });
 
   return (
     <div>
