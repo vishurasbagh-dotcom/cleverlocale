@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { signIn } from "next-auth/react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { loginWithCredentials, type LoginState } from "@/actions/login";
 
 const DEMO = {
   customer: { email: "user1@cleverlocale.local", password: "cl@123", label: "Customer / User" },
@@ -11,47 +12,70 @@ const DEMO = {
 
 type LoginKind = "" | keyof typeof DEMO;
 
-export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+function defaultTargetForRole(role: LoginKind): string {
+  if (role === "admin") return "/admin";
+  if (role === "vendor") return "/vendor";
+  return "/";
+}
+
+function normalizeCallbackUrl(input: string | undefined): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed, window.location.origin);
+    if (parsed.origin !== window.location.origin) return null;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return null;
+  }
+}
+
+export function LoginForm({
+  callbackUrl,
+  vendorRegistered,
+}: {
+  callbackUrl?: string;
+  /** After vendor application without prior account — prompt to use business credentials. */
+  vendorRegistered?: boolean;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(loginWithCredentials, {} as LoginState);
   const [loginKind, setLoginKind] = useState<LoginKind>("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
 
   useEffect(() => {
-    if (!loginKind) {
-      return;
+    const target = normalizedCallbackUrl || defaultTargetForRole(loginKind);
+    router.prefetch(target);
+  }, [normalizedCallbackUrl, loginKind, router]);
+
+  useEffect(() => {
+    if (!state.redirectTo) return;
+    try {
+      const parsed = new URL(state.redirectTo, window.location.origin);
+      if (parsed.origin === window.location.origin) {
+        router.replace(parsed.pathname + parsed.search + parsed.hash);
+        return;
+      }
+    } catch {
+      // Fall back for malformed URL.
     }
-    const row = DEMO[loginKind];
-    setEmail(row.email);
-    setPassword(row.password);
-  }, [loginKind]);
-
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    setPending(true);
-
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-      callbackUrl: callbackUrl || "/",
-    });
-
-    setPending(false);
-    if (res?.error) {
-      setError("Invalid email or password.");
-      return;
-    }
-    window.location.href = res?.url || callbackUrl || "/";
-  }
+    window.location.assign(state.redirectTo);
+  }, [state.redirectTo, router]);
 
   return (
     <div
       className="flex flex-col gap-4 rounded-2xl border-2 border-emerald-600 bg-white p-6 shadow-xl shadow-emerald-900/10 ring-4 ring-emerald-500/15 dark:border-emerald-500 dark:bg-zinc-950 dark:ring-emerald-400/20"
       aria-labelledby="login-panel-title"
     >
+      {vendorRegistered && (
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100">
+          Vendor application received. Sign in with your <strong>business email</strong> and the password you created to
+          track approval (Approved, On hold, or Rejected).
+        </p>
+      )}
       <h2 id="login-panel-title" className="sr-only">
         Sign in to Cleverlocale
       </h2>
@@ -63,7 +87,14 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
           id="login-as"
           name="loginAs"
           value={loginKind}
-          onChange={(e) => setLoginKind(e.target.value as LoginKind)}
+          onChange={(e) => {
+            const selected = e.target.value as LoginKind;
+            setLoginKind(selected);
+            if (!selected) return;
+            const row = DEMO[selected];
+            setEmail(row.email);
+            setPassword(row.password);
+          }}
           className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none ring-0 focus:outline-none focus:ring-0 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
         >
           <option value="">Choose…</option>
@@ -79,8 +110,10 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <form action={formAction} className="flex flex-col gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+        <input type="hidden" name="callbackUrl" value={normalizedCallbackUrl || ""} readOnly />
+        <input type="hidden" name="loginKind" value={loginKind} readOnly />
+        {state.error && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Email</span>
           <input

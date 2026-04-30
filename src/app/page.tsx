@@ -1,13 +1,14 @@
 import Link from "next/link";
+import { getMarketplaceVendorWhere, storefrontVendorSelect } from "@/lib/marketplace-vendor";
 import { prisma } from "@/lib/prisma";
 import { formatInr } from "@/lib/money";
 
 export default async function Home() {
   const products = await prisma.product.findMany({
-    where: { isPublished: true },
+    where: { isPublished: true, vendor: await getMarketplaceVendorWhere() },
     take: 6,
     orderBy: { updatedAt: "desc" },
-    include: { vendor: true },
+    include: { vendor: { select: storefrontVendorSelect } },
   });
 
   return (

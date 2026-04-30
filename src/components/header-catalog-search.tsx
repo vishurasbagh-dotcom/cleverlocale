@@ -8,7 +8,7 @@ import { CatalogSearch, type CatalogSearchCategory } from "@/components/catalog-
  */
 export function HeaderCatalogSearch({ categories }: { categories: CatalogSearchCategory[] }) {
   const pathname = usePathname();
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname.startsWith("/admin") || pathname.startsWith("/vendor")) {
     return null;
   }
   return <CatalogSearch categories={categories} />;

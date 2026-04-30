@@ -3,12 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { storefrontVendorSelect } from "@/lib/marketplace-vendor";
 import { prisma } from "@/lib/prisma";
 
 export async function placeDummyOrder(
   _prev: { error?: string } | undefined,
   _formData: FormData,
 ): Promise<{ error?: string } | undefined> {
+  void _prev;
+  void _formData;
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/login");
@@ -17,7 +20,7 @@ export async function placeDummyOrder(
   const cart = await prisma.cart.findUnique({
     where: { userId: session.user.id },
     include: {
-      items: { include: { product: { include: { vendor: true } } } },
+      items: { include: { product: { include: { vendor: { select: storefrontVendorSelect } } } } },
     },
   });
 

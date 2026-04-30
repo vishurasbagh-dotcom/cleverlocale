@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CANONICAL_CATEGORY_SLUGS } from "@/lib/catalog-categories";
+import { collectSubtreeCategoryIds } from "@/lib/category-queries";
+import { getMarketplaceVendorWhere, storefrontVendorSelect } from "@/lib/marketplace-vendor";
 import { prisma } from "@/lib/prisma";
 import { formatInr } from "@/lib/money";
 
@@ -7,18 +8,27 @@ type Props = {
   searchParams: Promise<{ q?: string; category?: string }>;
 };
 
-const allowedCategorySlugs = new Set<string>(CANONICAL_CATEGORY_SLUGS);
-
 export default async function ProductsPage({ searchParams }: Props) {
   const { q = "", category: rawCategory = "" } = await searchParams;
   const query = q.trim();
-  const categorySlug = rawCategory && allowedCategorySlugs.has(rawCategory) ? rawCategory : "";
+  const requestedSlug = rawCategory.trim();
+
+  const rootCategory = requestedSlug
+    ? await prisma.category.findUnique({
+        where: { slug: requestedSlug },
+        select: { id: true, name: true },
+      })
+    : null;
+
+  const categoryIds =
+    rootCategory && requestedSlug ? await collectSubtreeCategoryIds(rootCategory.id) : null;
 
   const where = {
     isPublished: true,
-    ...(categorySlug
+    vendor: await getMarketplaceVendorWhere(),
+    ...(categoryIds
       ? {
-          category: { slug: categorySlug },
+          categoryId: { in: categoryIds },
         }
       : {}),
     ...(query
@@ -34,18 +44,11 @@ export default async function ProductsPage({ searchParams }: Props) {
   const products = await prisma.product.findMany({
     where,
     orderBy: { name: "asc" },
-    include: { vendor: true, category: true },
+    include: { vendor: { select: storefrontVendorSelect }, category: true },
   });
 
-  const categoryLabel = categorySlug
-    ? await prisma.category.findUnique({
-        where: { slug: categorySlug },
-        select: { name: true },
-      })
-    : null;
-
   const subtitleParts: string[] = [];
-  if (categoryLabel?.name) subtitleParts.push(categoryLabel.name);
+  if (rootCategory?.name) subtitleParts.push(rootCategory.name);
   if (query) subtitleParts.push(`“${query}”`);
   const filterSummary =
     subtitleParts.length > 0 ? `Filtered: ${subtitleParts.join(" · ")}` : null;

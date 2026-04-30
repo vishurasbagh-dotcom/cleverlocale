@@ -16,8 +16,12 @@ enum Role {
 }
 
 enum VendorStatus {
+  /// Submitted; awaiting admin review.
   PENDING
+  /// Application paused / needs follow-up (admin).
+  ON_HOLD
   APPROVED
+  REJECTED
   SUSPENDED
 }
 
@@ -44,30 +48,69 @@ model User {
 }
 
 model Vendor {
-  id        String       @id @default(cuid())
-  userId    String       @unique @map("user_id")
-  shopName  String       @map("shop_name")
-  slug      String       @unique
-  status    VendorStatus @default(PENDING)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
+  id       String       @id @default(cuid())
+  userId   String       @unique @map("user_id")
+  shopName String       @map("shop_name")
+  slug     String       @unique
+  status   VendorStatus @default(PENDING)
+  /// When false, shop and products are hidden from the public marketplace (vendor-controlled when approved).
+  isShopOpen Boolean @default(true) @map("is_shop_open")
+  /// When true, CL Admin has temporarily hidden the shop from the marketplace (vendor cannot edit until lifted).
+  isAdminShopClosed Boolean @default(false) @map("is_admin_shop_closed")
+  /// Optional pitch / business description (not required for listing card).
+  shopDescription String? @map("shop_description") @db.Text
+  addressLine1    String? @map("address_line1")
+  addressLine2    String? @map("address_line2")
+  locality        String?
+  city            String?
+  pincode         String?
+  mobileNumber    String? @map("mobile_number")
+  correctionNotes String? @map("correction_notes") @db.Text
+  latitude        Float?
+  longitude       Float?
+  /// Server-side file name under upload dir (admin-only access).
+  certificateStoredName   String? @map("certificate_stored_name")
+  certificateOriginalName String? @map("certificate_original_name")
+  certificateMimeType     String? @map("certificate_mime_type")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products   Product[]
-  orderLines OrderLine[]
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products          Product[]
+  orderLines        OrderLine[]
+  sellingCategories VendorSellingCategory[]
 
+  @@index([status, isShopOpen])
   @@map("vendors")
 }
 
-model Category {
-  id          String    @id @default(cuid())
-  name        String
-  slug        String    @unique
-  description String?
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  products    Product[]
+/// Categories this vendor intends to sell (application & admin review).
+model VendorSellingCategory {
+  vendorId   String @map("vendor_id")
+  categoryId String @map("category_id")
 
+  vendor   Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([vendorId, categoryId])
+  @@index([categoryId])
+  @@map("vendor_selling_categories")
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  parentId    String?    @map("parent_id")
+  name        String
+  slug        String     @unique
+  description String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  products    Product[]
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Category[] @relation("CategoryTree")
+  vendorSellingCategories VendorSellingCategory[]
+
+  @@index([parentId])
   @@map("categories")
 }
 

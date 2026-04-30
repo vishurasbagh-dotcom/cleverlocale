@@ -19,6 +19,10 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  if (pathname === "/" && role === "ADMIN") {
+    return NextResponse.redirect(new URL("/admin", req.url));
+  }
+
   if (pathname.startsWith("/vendor")) {
     if (!isLoggedIn) {
       return NextResponse.redirect(new URL("/login", req.url));
@@ -47,6 +51,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
     "/admin/:path*",
     "/vendor/:path*",
     "/account/:path*",

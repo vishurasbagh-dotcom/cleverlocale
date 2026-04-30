@@ -21,7 +21,11 @@ export default function RegisterPage() {
       <div>
         <h1 className="text-2xl font-semibold">Create account</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Start with a customer account here. Vendor storefront access is granted by Cleverlocale after registration and review — not instantly from this form.
+          Start with a customer account here. To{" "}
+          <Link href="/register/vendor" className="font-medium text-emerald-800 underline-offset-4 hover:underline dark:text-emerald-400">
+            sell as a vendor
+          </Link>
+          , sign in after registering and complete the vendor application (reviewed by Cleverlocale).
         </p>
       </div>
       <form action={formAction} className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">

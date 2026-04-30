@@ -1,9 +1,9 @@
 import "dotenv/config";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { CANONICAL_CATEGORIES, CANONICAL_CATEGORY_SLUGS } from "../src/lib/catalog-categories";
+import { DEFAULT_SEED_ROOT_CATEGORIES } from "../src/lib/catalog-categories";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -55,12 +55,14 @@ async function main() {
 
     await prisma.vendor.upsert({
       where: { userId: vendorUser.id },
-      update: { shopName: v.shopName, slug: v.slug, status: "APPROVED" },
+      update: { shopName: v.shopName, slug: v.slug, status: "APPROVED", isShopOpen: true, isAdminShopClosed: false },
       create: {
         userId: vendorUser.id,
         shopName: v.shopName,
         slug: v.slug,
         status: "APPROVED",
+        isShopOpen: true,
+        isAdminShopClosed: false,
       },
     });
   }
@@ -122,12 +124,16 @@ async function main() {
       shopName: "GreenLeaf Organics",
       slug: "greenleaf-organics",
       status: "APPROVED",
+      isShopOpen: true,
+      isAdminShopClosed: false,
     },
     create: {
       userId: legacyVendorUser.id,
       shopName: "GreenLeaf Organics",
       slug: "greenleaf-organics",
       status: "APPROVED",
+      isShopOpen: true,
+      isAdminShopClosed: false,
     },
   });
 
@@ -149,36 +155,18 @@ async function main() {
   });
 
   const categoryBySlug: Record<string, { id: string }> = {};
-  for (const c of CANONICAL_CATEGORIES) {
+  for (const c of DEFAULT_SEED_ROOT_CATEGORIES) {
     const row = await prisma.category.upsert({
       where: { slug: c.slug },
-      update: { name: c.name, description: c.description },
+      update: { name: c.name, description: c.description, parentId: null },
       create: {
         slug: c.slug,
         name: c.name,
         description: c.description,
+        parentId: null,
       },
     });
     categoryBySlug[c.slug] = { id: row.id };
-  }
-
-  /** Remove categories outside the canonical four (e.g. legacy `home-kitchen`). Clears products' category link first. */
-  const extraCategories = await prisma.category.findMany({
-    where: { slug: { notIn: [...CANONICAL_CATEGORY_SLUGS] } },
-    select: { id: true, slug: true },
-  });
-  if (extraCategories.length > 0) {
-    const extraIds = extraCategories.map((c) => c.id);
-    await prisma.product.updateMany({
-      where: { categoryId: { in: extraIds } },
-      data: { categoryId: null },
-    });
-    await prisma.category.deleteMany({
-      where: { id: { in: extraIds } },
-    });
-    console.log(
-      `  Removed ${extraCategories.length} non-canonical categor(ies): ${extraCategories.map((c) => c.slug).join(", ")}`,
-    );
   }
 
   const catElectronics = categoryBySlug.electronics;
@@ -241,7 +229,7 @@ async function main() {
   }
 
   console.log("Seed complete.");
-  console.log(`  Categories (exactly ${CANONICAL_CATEGORY_SLUGS.length}): ${CANONICAL_CATEGORY_SLUGS.join(", ")}`);
+  console.log(`  Default root categories: ${DEFAULT_SEED_ROOT_CATEGORIES.map((c) => c.slug).join(", ")}`);
   console.log("  Password for all accounts below: cl@123");
   console.log("  CL Admin:  admin1@… admin2@… admin3@… @cleverlocale.local");
   console.log("  Vendors:   vendor1@… vendor2@… vendor3@… @cleverlocale.local");

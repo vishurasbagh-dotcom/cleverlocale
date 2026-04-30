@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { createVendorProduct, type ProductFormState } from "@/actions/vendor-product";
 
-export function VendorProductForm({ categories }: { categories: { id: string; name: string }[] }) {
+export function VendorProductForm({ categories }: { categories: { id: string; label: string }[] }) {
   const [state, action, pending] = useActionState(createVendorProduct, {} as ProductFormState);
 
   return (
@@ -46,7 +46,7 @@ export function VendorProductForm({ categories }: { categories: { id: string; na
           </option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name}
+              {c.label}
             </option>
           ))}
         </select>

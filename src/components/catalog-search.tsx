@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 
-export type CatalogSearchCategory = { slug: string; name: string };
+export type CatalogSearchCategory = { slug: string; label: string };
 
 type CatalogSearchProps = {
   categories: CatalogSearchCategory[];
@@ -60,7 +60,7 @@ export function CatalogSearch({ categories, className = "" }: CatalogSearchProps
         <option value="">All</option>
         {categories.map((c) => (
           <option key={c.slug} value={c.slug}>
-            {c.name}
+            {c.label}
           </option>
         ))}
       </select>

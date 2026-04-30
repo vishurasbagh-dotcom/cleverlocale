@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCartForm } from "@/components/add-to-cart-form";
+import { getMarketplaceVendorWhere, storefrontVendorSelect } from "@/lib/marketplace-vendor";
 import { prisma } from "@/lib/prisma";
 import { formatInr } from "@/lib/money";
 
@@ -13,9 +14,9 @@ export default async function ProductPage({ params }: Props) {
     where: {
       isPublished: true,
       slug: productSlug,
-      vendor: { slug: vendorSlug, status: "APPROVED" },
+      vendor: await getMarketplaceVendorWhere({ slug: vendorSlug }),
     },
-    include: { vendor: true, category: true },
+    include: { vendor: { select: storefrontVendorSelect }, category: true },
   });
 
   if (!product) notFound();

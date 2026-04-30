@@ -3,17 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { CANONICAL_CATEGORY_SLUGS } from "@/lib/catalog-categories";
+import { categoryIsLeaf } from "@/lib/category-queries";
 import { prisma } from "@/lib/prisma";
-
-function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+import { slugify } from "@/lib/slug";
+import { vendorShopfrontLive } from "@/lib/vendor-shopfront-live";
 
 const productSchema = z.object({
   name: z.string().min(1).max(200),
@@ -21,7 +14,7 @@ const productSchema = z.object({
   description: z.string().max(5000).optional(),
   priceRupees: z.coerce.number().positive(),
   stock: z.coerce.number().int().min(0),
-  categoryId: z.string().min(1, "Select one of the four platform categories."),
+  categoryId: z.string().min(1, "Select a shelf category."),
   isPublished: z.coerce.boolean().optional(),
 });
 
@@ -33,12 +26,18 @@ export async function createVendorProduct(_prev: ProductFormState, formData: For
     return { error: "Unauthorized" };
   }
 
-  const vendor = await prisma.vendor.findUnique({ where: { userId: session.user.id } });
+  const vendor = await prisma.vendor.findUnique({
+    where: { userId: session.user.id },
+    select: { id: true, status: true, isShopOpen: true, isAdminShopClosed: true },
+  });
   if (!vendor) {
     return { error: "Vendor profile not found." };
   }
-  if (vendor.status !== "APPROVED") {
-    return { error: "Your shop is not approved yet." };
+  if (!vendorShopfrontLive(vendor)) {
+    return {
+      error:
+        "Your shop must be live on the marketplace to add or change products. Open it from the vendor dashboard, or wait if CL Admin has temporarily closed your shop.",
+    };
   }
 
   const rawSlug = formData.get("slug");
@@ -68,11 +67,12 @@ export async function createVendorProduct(_prev: ProductFormState, formData: For
     return { error: "Another product already uses this URL slug. Change the name or slug." };
   }
 
-  const cat = await prisma.category.findFirst({
-    where: { id: categoryId, slug: { in: [...CANONICAL_CATEGORY_SLUGS] } },
-  });
-  if (!cat) {
-    return { error: "Choose one of the four platform categories (Electronics, Groceries / Provision, Baby Products, PC and Laptops)." };
+  const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+  if (!cat || !(await categoryIsLeaf(categoryId))) {
+    return {
+      error:
+        "Choose a shelf category — the most specific category with no subcategories (add subcategories in Admin if needed).",
+    };
   }
   const resolvedCategoryId = cat.id;
 

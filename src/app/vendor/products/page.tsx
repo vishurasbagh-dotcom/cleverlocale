@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatInr } from "@/lib/money";
+import { vendorShopfrontLive } from "@/lib/vendor-shopfront-live";
 
 export default async function VendorProductsPage() {
   const session = await auth();
@@ -13,6 +14,21 @@ export default async function VendorProductsPage() {
 
   if (!vendor) {
     return <p className="text-zinc-600 dark:text-zinc-400">No vendor profile for this account.</p>;
+  }
+  if (vendor.status !== "APPROVED") {
+    return (
+      <p className="text-zinc-600 dark:text-zinc-400">
+        Products are available only after your vendor registration is approved.
+      </p>
+    );
+  }
+  if (!vendorShopfrontLive(vendor)) {
+    return (
+      <p className="text-zinc-600 dark:text-zinc-400">
+        Product management is paused while your shop is not live. Open your shop from the dashboard, or wait if CL Admin has
+        temporarily closed it.
+      </p>
+    );
   }
 
   const products = await prisma.product.findMany({

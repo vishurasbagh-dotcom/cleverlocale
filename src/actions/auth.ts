@@ -1,6 +1,6 @@
 "use server";
 
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +22,8 @@ export async function registerUser(_prev: RegisterState, formData: FormData): Pr
   if (!parsed.success) {
     return { error: parsed.error.flatten().formErrors.join(" ") || "Invalid input" };
   }
-  const { email, password, name } = parsed.data;
+  const email = parsed.data.email.trim().toLowerCase();
+  const { password, name } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {

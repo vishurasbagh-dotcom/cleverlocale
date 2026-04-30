@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { auth } from "@/auth";
 import { Providers } from "@/components/providers";
+import { RouteHeaderVisibility } from "@/components/route-header-visibility";
 import { ShopHeader } from "@/components/shop-header";
 import "./globals.css";
 
@@ -30,11 +31,14 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-white text-zinc-900">
+      <body suppressHydrationWarning className="flex min-h-full flex-col bg-white text-zinc-900">
         <Providers session={session}>
-          <ShopHeader />
+          <RouteHeaderVisibility>
+            <ShopHeader session={session} />
+          </RouteHeaderVisibility>
           <div className="flex-1">{children}</div>
         </Providers>
       </body>

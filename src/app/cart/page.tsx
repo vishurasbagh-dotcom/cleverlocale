@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { CartLines } from "@/components/cart-lines";
+import { storefrontVendorSelect } from "@/lib/marketplace-vendor";
 import { prisma } from "@/lib/prisma";
 import { formatInr } from "@/lib/money";
 
@@ -12,7 +13,7 @@ export default async function CartPage() {
   const cart = await prisma.cart.findUnique({
     where: { userId: session.user.id },
     include: {
-      items: { include: { product: { include: { vendor: true } } } },
+      items: { include: { product: { include: { vendor: { select: storefrontVendorSelect } } } } },
     },
   });
 
