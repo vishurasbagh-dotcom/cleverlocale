@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type IconName = "dash" | "tree" | "shop" | "cart" | "users" | "gear" | "box";
+type IconName = "dash" | "tree" | "shop" | "cart" | "users" | "gear" | "box" | "star";
 
 type NavItem = { href: string; label: string; icon: IconName; soon?: boolean };
 type NavSection = { section: string; items: NavItem[] };
@@ -52,6 +52,12 @@ function Icon({ name }: { name: IconName }) {
       return (
         <svg className={common} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10" />
+        </svg>
+      );
+    case "star":
+      return (
+        <svg className={common} fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17.8 5.7 21l2.3-7-6-4.6h7.6L12 2z" />
         </svg>
       );
   }

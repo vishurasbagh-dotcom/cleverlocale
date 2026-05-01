@@ -57,31 +57,59 @@ model Vendor {
   isShopOpen Boolean @default(true) @map("is_shop_open")
   /// When true, CL Admin has temporarily hidden the shop from the marketplace (vendor cannot edit until lifted).
   isAdminShopClosed Boolean @default(false) @map("is_admin_shop_closed")
+  /// When true, CL Admin highlights this shop on /shops and prioritizes its products in homepage featured listings.
+  isFeatured Boolean @default(false) @map("is_featured")
   /// Optional pitch / business description (not required for listing card).
   shopDescription String? @map("shop_description") @db.Text
-  addressLine1    String? @map("address_line1")
-  addressLine2    String? @map("address_line2")
-  locality        String?
-  city            String?
-  pincode         String?
   mobileNumber    String? @map("mobile_number")
   correctionNotes String? @map("correction_notes") @db.Text
-  latitude        Float?
-  longitude       Float?
-  /// Server-side file name under upload dir (admin-only access).
-  certificateStoredName   String? @map("certificate_stored_name")
-  certificateOriginalName String? @map("certificate_original_name")
-  certificateMimeType     String? @map("certificate_mime_type")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopLocation    VendorShopLocation?
+  certificate     VendorCertificate?
   products          Product[]
   orderLines        OrderLine[]
   sellingCategories VendorSellingCategory[]
 
   @@index([status, isShopOpen])
+  @@index([status, isFeatured])
   @@map("vendors")
+}
+
+/// Physical / mailing location and map coordinates for a vendor shop (1:1 with Vendor).
+model VendorShopLocation {
+  id           String   @id @default(cuid())
+  vendorId     String   @unique @map("vendor_id")
+  addressLine1 String?  @map("address_line1")
+  addressLine2 String?  @map("address_line2")
+  locality     String?
+  city         String?
+  pincode      String?
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_shop_locations")
+}
+
+/// Uploaded verification document metadata (1:1 with Vendor; row exists only when a file is stored).
+model VendorCertificate {
+  id             String   @id @default(cuid())
+  vendorId       String   @unique @map("vendor_id")
+  storedName     String   @map("stored_name")
+  originalName   String?  @map("original_name")
+  mimeType       String?  @map("mime_type")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_certificates")
 }
 
 /// Categories this vendor intends to sell (application & admin review).
@@ -121,15 +149,27 @@ model Product {
   name         String
   slug         String
   description  String?  @db.Text
-  /// Price in Indian paise (1 INR = 100 paise)
+  /// Price in Indian paise (1 INR = 100 paise). When `useVariantPricing` is true, this is unused for selling — use variant rows.
   pricePaise   Int      @map("price_paise")
   stock        Int      @default(0)
   isPublished  Boolean  @default(false) @map("is_published")
+  /// Customer-facing name for option column 1 (e.g. Size, Storage).
+  variantLabel1 String? @map("variant_label_1")
+  /// Customer-facing name for option column 2 (e.g. Storage).
+  variantLabel2 String? @map("variant_label_2")
+  /// Third tier in nested options (e.g. Color / Finish).
+  variantLabel3 String? @map("variant_label_3")
+  /// When true, each `ProductVariant` row carries its own `pricePaise`; base `pricePaise` is ignored for checkout.
+  useVariantPricing Boolean @default(false) @map("use_variant_pricing")
+  /// When true, variant `color1`–`color3` swatches are shown; vendors can set them in the nested builder.
+  useVariantColors Boolean @default(false) @map("use_variant_colors")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  vendor     Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  vendor     Vendor           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category   Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images     ProductImage[]
+  variants   ProductVariant[]
   cartItems  CartItem[]
   orderLines OrderLine[]
 
@@ -137,6 +177,42 @@ model Product {
   @@index([categoryId])
   @@index([isPublished])
   @@map("products")
+}
+
+model ProductImage {
+  id         String  @id @default(cuid())
+  productId  String  @map("product_id")
+  storedName String  @map("stored_name")
+  sortOrder  Int     @default(0) @map("sort_order")
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model ProductVariant {
+  id         String  @id @default(cuid())
+  productId  String  @map("product_id")
+  value1     String  @default("") @map("value_1")
+  value2     String  @default("") @map("value_2")
+  value3     String  @default("") @map("value_3")
+  /// Optional display color (hex #RRGGBB) for tier 1 — shown when `product.useVariantColors` is true.
+  color1     String? @map("color_1")
+  /// Optional display color for tier 2.
+  color2     String? @map("color_2")
+  /// Optional display color for tier 3 (often the finish / color name row).
+  color3     String? @map("color_3")
+  /// Set when `product.useVariantPricing` is true; otherwise null and product `pricePaise` applies.
+  pricePaise Int?    @map("price_paise")
+  stock      Int     @default(0)
+  sortOrder  Int     @default(0) @map("sort_order")
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  orderLines OrderLine[]
+
+  @@unique([productId, value1, value2, value3])
+  @@index([productId])
+  @@map("product_variants")
 }
 
 model Cart {
@@ -154,12 +230,14 @@ model CartItem {
   id        String @id @default(cuid())
   cartId    String @map("cart_id")
   productId String @map("product_id")
+  productVariantId String? @map("product_variant_id")
   quantity  Int
 
-  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cart           Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
-  @@unique([cartId, productId])
+  @@index([cartId, productId])
   @@map("cart_items")
 }
 
@@ -185,14 +263,18 @@ model OrderLine {
   orderId        String @map("order_id")
   productId      String @map("product_id")
   vendorId       String @map("vendor_id")
+  productVariantId String? @map("product_variant_id")
+  /// Denormalized for receipts, e.g. "Size: M · Color: Navy"
+  variantSummary String? @map("variant_summary") @db.Text
   productName    String @map("product_name")
   quantity       Int
   unitPaise      Int    @map("unit_paise")
   lineTotalPaise Int    @map("line_total_paise")
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-  vendor  Vendor  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  vendor         Vendor          @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([vendorId])

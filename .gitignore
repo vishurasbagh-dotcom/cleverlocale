@@ -43,7 +43,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Prisma (regenerated: npm run db:generate or postinstall)
-/src/generated/prisma
-
+# Prisma client (regenerated on postinstall, predev, and build; run `npx prisma generate` after schema changes)
 /src/generated/prisma

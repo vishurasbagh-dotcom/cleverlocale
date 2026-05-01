@@ -5,8 +5,18 @@ import { unstable_cache } from "next/cache";
 import type { Session } from "next-auth";
 import { HeaderCatalogSearch } from "@/components/header-catalog-search";
 import { SignOutButton } from "@/components/sign-out-button";
-import { buildCategoryTree, flattenCategoryOptions } from "@/lib/category-tree";
+import { buildCategoryTree, flattenPrimaryCategoryOptions } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
+
+function CartIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="9" cy="20" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="20" r="1.25" fill="currentColor" stroke="none" />
+      <path d="M3 4h2l1 12h12l2-9H7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const getHeaderCategories = unstable_cache(
   async () =>
@@ -21,14 +31,19 @@ const getHeaderCategories = unstable_cache(
 export async function ShopHeader({ session }: { session: Session | null }) {
   const isAdmin = session?.user?.role === "ADMIN";
   const compact = session?.user?.role === "ADMIN" || session?.user?.role === "VENDOR";
-  const showVendorApply =
-    session?.user?.role === "CUSTOMER" &&
-    !(await prisma.vendor.findUnique({
+
+  /** Distinct cart lines (products/SKUs), not sum of quantities. */
+  let cartProductLineCount = 0;
+  if (session?.user?.id && !isAdmin) {
+    const cart = await prisma.cart.findUnique({
       where: { userId: session.user.id },
-      select: { id: true },
-    }));
+      select: { _count: { select: { items: true } } },
+    });
+    cartProductLineCount = cart?._count.items ?? 0;
+  }
+
   const rows = await getHeaderCategories();
-  const categories = flattenCategoryOptions(buildCategoryTree(rows));
+  const categories = flattenPrimaryCategoryOptions(buildCategoryTree(rows));
 
   return (
     <header className="border-b border-[#141312] bg-[#181617]">
@@ -53,34 +68,51 @@ export async function ShopHeader({ session }: { session: Session | null }) {
           <span className="sr-only">Cleverlocale</span>
         </Link>
 
-        <div className="flex min-w-0 flex-1 flex-col justify-center lg:max-w-none">
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
           <Suspense
             fallback={
-              <div
-                className="h-11 w-full max-w-3xl rounded-md bg-zinc-700/35"
-                aria-hidden
-              />
+              <div className="h-11 w-full rounded-md bg-zinc-700/35" aria-hidden />
             }
           >
             <HeaderCatalogSearch categories={categories} />
           </Suspense>
         </div>
 
-        <nav className="flex w-full shrink-0 flex-wrap items-center justify-end gap-3 text-sm font-medium text-zinc-100 sm:w-auto sm:justify-start">
+        <nav className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 text-sm font-medium text-zinc-200 sm:w-auto sm:justify-start sm:gap-3">
           {session ? (
             <>
               {!isAdmin && (
-                <Link href="/cart" className="hover:text-white">
-                  Cart
+                <Link
+                  href="/cart"
+                  aria-label={
+                    cartProductLineCount > 0
+                      ? `Shopping cart, ${cartProductLineCount} product${cartProductLineCount === 1 ? "" : "s"}`
+                      : "Shopping cart"
+                  }
+                  className={`relative inline-flex items-center gap-1.5 rounded-md px-2 py-1 transition ${
+                    cartProductLineCount > 0
+                      ? "bg-[#febd69]/18 text-[#febd69] ring-1 ring-[#febd69]/55 hover:bg-[#febd69]/28 hover:text-white"
+                      : "px-1 py-0.5 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <CartIcon
+                    className={`h-5 w-5 shrink-0 ${cartProductLineCount > 0 ? "text-[#febd69]" : ""}`}
+                  />
+                  <span>Cart</span>
+                  {cartProductLineCount > 0 ? (
+                    <span className="absolute -right-1 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#febd69] px-1 text-[0.65rem] font-bold leading-none text-zinc-900 shadow-md tabular-nums ring-2 ring-[#181617]">
+                      {cartProductLineCount > 99 ? "99+" : cartProductLineCount}
+                    </span>
+                  ) : null}
                 </Link>
               )}
               {!isAdmin && (
-                <Link href="/account/orders" className="hover:text-white">
+                <Link href="/account/orders" className="rounded-md px-1 py-0.5 hover:bg-white/10 hover:text-white">
                   Orders
                 </Link>
               )}
               {!isAdmin && (session.user.role === "VENDOR" || session.user.role === "ADMIN") && (
-                <Link href="/vendor" className="hover:text-white">
+                <Link href="/vendor" className="rounded-md px-1 py-0.5 hover:bg-white/10 hover:text-white">
                   Vendor
                 </Link>
               )}
@@ -92,14 +124,6 @@ export async function ShopHeader({ session }: { session: Session | null }) {
                   CL Admin Panel
                 </Link>
               )}
-              {!isAdmin && showVendorApply && (
-                <Link
-                  href="/register/vendor"
-                  className="rounded-sm bg-[#febd69] px-2.5 py-1.5 text-xs font-semibold text-[#111] hover:bg-[#f3a847]"
-                >
-                  Apply as vendor
-                </Link>
-              )}
               <span className="text-zinc-600">|</span>
               <span className="max-w-[10rem] truncate text-xs text-zinc-400" title={session.user.email ?? ""}>
                 {session.user.email}
@@ -108,12 +132,15 @@ export async function ShopHeader({ session }: { session: Session | null }) {
             </>
           ) : (
             <>
-              <Link href="/login" className="hover:text-white">
-                Log in
+              <Link
+                href="/login"
+                className="rounded-sm border border-[#febd69]/80 bg-[#febd69]/10 px-3 py-2 text-center text-xs font-semibold leading-snug text-[#febd69] shadow-sm transition hover:border-[#febd69] hover:bg-[#febd69]/20 hover:text-white sm:whitespace-nowrap"
+              >
+                Sign in
               </Link>
               <Link
                 href="/register/vendor"
-                className="rounded-sm bg-[#febd69] px-3 py-2 text-center text-xs font-semibold leading-snug text-[#111] shadow hover:bg-[#f3a847] sm:max-w-none sm:whitespace-nowrap"
+                className="rounded-sm bg-[#febd69] px-3 py-2 text-center text-xs font-semibold leading-snug text-[#111] shadow hover:bg-[#f3a847] sm:whitespace-nowrap"
               >
                 Register as a vendor
               </Link>

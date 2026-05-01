@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { VendorProductForm } from "@/components/vendor-product-form";
-import { buildCategoryTree, flattenLeafCategoryOptions } from "@/lib/category-tree";
+import { buildCategoryTree } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
 import { vendorShopfrontLive } from "@/lib/vendor-shopfront-live";
 
@@ -31,20 +31,21 @@ export default async function NewVendorProductPage() {
     select: { id: true, parentId: true, name: true, slug: true, description: true },
     orderBy: { name: "asc" },
   });
-  const categories = flattenLeafCategoryOptions(buildCategoryTree(rows));
+  const categoryTree = buildCategoryTree(rows);
 
   return (
     <div>
       <h1 className="text-2xl font-semibold">New product</h1>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        Pick the shelf category (leaf). Ask a CL Admin to add subcategories if something is missing.
+        Choose a category and subcategory, add photos, and optionally set sizes or other options. Ask a CL Admin to add
+        categories if something is missing.
       </p>
-      {categories.length === 0 ? (
+      {categoryTree.length === 0 ? (
         <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-100">
-          No shelf categories are available yet. A CL Admin must add categories under Admin → Categories.
+          No categories are available yet. A CL Admin must add categories under Admin → Categories.
         </p>
       ) : (
-        <VendorProductForm categories={categories} />
+        <VendorProductForm categoryTree={categoryTree} />
       )}
     </div>
   );

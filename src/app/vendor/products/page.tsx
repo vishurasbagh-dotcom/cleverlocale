@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { productListPricePaise, productShowFromLabel } from "@/lib/product-display";
 import { formatInr } from "@/lib/money";
 import { vendorShopfrontLive } from "@/lib/vendor-shopfront-live";
 
@@ -34,7 +35,7 @@ export default async function VendorProductsPage() {
   const products = await prisma.product.findMany({
     where: { vendorId: vendor.id },
     orderBy: { updatedAt: "desc" },
-    include: { category: true },
+    include: { category: true, variants: true },
   });
 
   return (
@@ -62,7 +63,9 @@ export default async function VendorProductsPage() {
                 </p>
               </div>
               <div className="text-right text-sm">
-                <p>{formatInr(p.pricePaise)}</p>
+                <p>
+                  {productShowFromLabel(p) ? <>From {formatInr(productListPricePaise(p))}</> : formatInr(productListPricePaise(p))}
+                </p>
                 <Link
                   href={`/p/${vendor.slug}/${p.slug}`}
                   className="text-emerald-800 hover:underline dark:text-emerald-400"

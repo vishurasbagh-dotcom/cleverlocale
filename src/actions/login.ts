@@ -5,9 +5,9 @@ import { signIn } from "@/auth";
 
 export type LoginState = { error?: string; redirectTo?: string };
 
-type LoginKind = "" | "customer" | "vendor" | "admin";
+type LoginKind = "customer" | "vendor" | "admin";
 
-function defaultTargetForRole(role: LoginKind): string {
+function defaultTargetForRole(role: string): string {
   if (role === "admin") return "/admin";
   if (role === "vendor") return "/vendor";
   return "/";
@@ -33,7 +33,9 @@ export async function loginWithCredentials(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const callbackUrl = sanitizeCallbackUrl(String(formData.get("callbackUrl") ?? ""));
-  const loginKind = String(formData.get("loginKind") ?? "") as LoginKind;
+  const loginKindRaw = String(formData.get("loginKind") ?? "").trim();
+  const loginKind: LoginKind =
+    loginKindRaw === "vendor" || loginKindRaw === "admin" ? loginKindRaw : "customer";
 
   if (!email || !password) {
     return { error: "Email and password are required." };
@@ -53,8 +55,7 @@ export async function loginWithCredentials(
     if (err instanceof AuthError) {
       if (err.type === "CredentialsSignin") {
         return {
-          error:
-            "Invalid email or password. For demo accounts run npm run db:seed (password cl@123). Use “Sign in as” to autofill.",
+          error: "Invalid email or password for this account type. Use the email you registered for the role you selected.",
         };
       }
       return { error: "Could not sign in right now. Please try again." };

@@ -26,3 +26,38 @@ body {
   outline: none;
   box-shadow: none;
 }
+
+@keyframes add-to-cart-success {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  }
+  45% {
+    transform: scale(1.045);
+    box-shadow: 0 0 0 12px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes cart-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer utilities {
+  .animate-add-to-cart-success {
+    animation: add-to-cart-success 0.7s ease-out both;
+  }
+  .animate-cart-toast-in {
+    animation: cart-toast-in 0.35s ease-out both;
+  }
+}

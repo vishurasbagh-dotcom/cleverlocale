@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import type { VendorStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
+import { vendorsHasIsFeaturedColumn } from "@/lib/vendor-featured-columns";
 
 const statusSchema = z.object({
   vendorId: z.string().min(1),
@@ -95,13 +96,19 @@ export async function createVendorByAdmin(formData: FormData) {
         status: data.status as VendorStatus,
         isShopOpen,
         isAdminShopClosed: false,
-        city: data.city?.trim() || null,
+        shopLocation: {
+          create: {
+            city: data.city?.trim() || null,
+          },
+        },
       },
     });
   });
 
   revalidatePath("/admin/vendors");
+  revalidatePath("/admin/vendor-management");
   revalidatePath("/products");
+  revalidatePath("/shops");
   revalidatePath("/");
 }
 
@@ -159,7 +166,9 @@ export async function updateVendorRegistrationStatus(formData: FormData) {
       });
     });
     revalidatePath("/admin/vendors");
+    revalidatePath("/admin/vendor-management");
     revalidatePath("/products");
+    revalidatePath("/shops");
     revalidatePath("/");
     revalidatePath("/vendor");
     revalidatePath("/register/vendor");
@@ -185,6 +194,16 @@ export async function updateVendorRegistrationStatus(formData: FormData) {
     where: { id: vendorId },
     data,
   });
+
+  if (resolvedStatus !== "APPROVED") {
+    const hasFeatured = await vendorsHasIsFeaturedColumn();
+    if (hasFeatured) {
+      await prisma.$executeRaw`
+        UPDATE vendors SET is_featured = false WHERE id = ${vendorId}
+      `;
+    }
+  }
+
   await prisma.$executeRaw`
     UPDATE "vendors"
     SET "correction_notes" = ${resolvedStatus === "ON_HOLD" ? correctionNotes : null}
@@ -192,7 +211,9 @@ export async function updateVendorRegistrationStatus(formData: FormData) {
   `;
 
   revalidatePath("/admin/vendors");
+  revalidatePath("/admin/vendor-management");
   revalidatePath("/products");
+  revalidatePath("/shops");
   revalidatePath("/");
   revalidatePath("/vendor");
   revalidatePath("/vendor/shop");
@@ -219,10 +240,46 @@ export async function toggleAdminVendorShopClosed(
     select: { isAdminShopClosed: true },
   });
   revalidatePath("/admin/vendors");
+  revalidatePath("/admin/vendor-management");
   revalidatePath("/products");
+  revalidatePath("/shops");
   revalidatePath("/");
   revalidatePath("/vendor");
   revalidatePath("/vendor/shop");
   revalidatePath("/vendor/products");
   return { ok: true, isAdminShopClosed: updated.isAdminShopClosed };
+}
+
+export async function toggleAdminVendorFeatured(
+  vendorId: string,
+): Promise<{ ok: true; isFeatured: boolean } | { ok: false; error: string }> {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    return { ok: false, error: "Unauthorized" };
+  }
+  const vendor = await prisma.vendor.findUnique({
+    where: { id: vendorId },
+    select: { status: true },
+  });
+  if (!vendor || vendor.status !== "APPROVED") {
+    return { ok: false, error: "Only approved vendors can be featured." };
+  }
+  const hasFeatured = await vendorsHasIsFeaturedColumn();
+  if (!hasFeatured) {
+    return { ok: false, error: "Run database migrations to enable featured shops." };
+  }
+  const rows = await prisma.$queryRaw<Array<{ isFeatured: boolean }>>`
+    SELECT is_featured AS "isFeatured" FROM vendors WHERE id = ${vendorId} LIMIT 1
+  `;
+  const current = Boolean(rows[0]?.isFeatured);
+  const next = !current;
+  await prisma.$executeRaw`
+    UPDATE vendors SET is_featured = ${next} WHERE id = ${vendorId}
+  `;
+  revalidatePath("/admin/vendor-management");
+  revalidatePath("/admin/vendors");
+  revalidatePath("/products");
+  revalidatePath("/shops");
+  revalidatePath("/");
+  return { ok: true, isFeatured: next };
 }

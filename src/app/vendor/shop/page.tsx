@@ -13,6 +13,7 @@ export default async function VendorShopDetailsPage() {
   const vendor = await prisma.vendor.findUnique({
     where: { userId: session.user.id },
     include: {
+      shopLocation: true,
       sellingCategories: { include: { category: { select: { id: true, name: true, parentId: true } } } },
     },
   });
@@ -84,13 +85,13 @@ export default async function VendorShopDetailsPage() {
         shopName={vendor.shopName}
         mobileNumber={vendor.mobileNumber}
         shopDescription={vendor.shopDescription}
-        addressLine1={vendor.addressLine1}
-        addressLine2={vendor.addressLine2}
-        locality={vendor.locality}
-        city={vendor.city}
-        pincode={vendor.pincode}
-        latitude={vendor.latitude}
-        longitude={vendor.longitude}
+        addressLine1={vendor.shopLocation?.addressLine1 ?? null}
+        addressLine2={vendor.shopLocation?.addressLine2 ?? null}
+        locality={vendor.shopLocation?.locality ?? null}
+        city={vendor.shopLocation?.city ?? null}
+        pincode={vendor.shopLocation?.pincode ?? null}
+        latitude={vendor.shopLocation?.latitude ?? null}
+        longitude={vendor.shopLocation?.longitude ?? null}
         categoryLabels={primaryLabels.length ? primaryLabels : vendor.sellingCategories.map((s) => s.category.name)}
       />
 
@@ -113,13 +114,13 @@ export default async function VendorShopDetailsPage() {
                 shopName: vendor.shopName,
                 mobileNumber: vendor.mobileNumber,
                 shopDescription: vendor.shopDescription,
-                addressLine1: vendor.addressLine1,
-                addressLine2: vendor.addressLine2,
-                locality: vendor.locality,
-                city: vendor.city,
-                pincode: vendor.pincode,
-                latitude: vendor.latitude,
-                longitude: vendor.longitude,
+                addressLine1: vendor.shopLocation?.addressLine1 ?? null,
+                addressLine2: vendor.shopLocation?.addressLine2 ?? null,
+                locality: vendor.shopLocation?.locality ?? null,
+                city: vendor.shopLocation?.city ?? null,
+                pincode: vendor.shopLocation?.pincode ?? null,
+                latitude: vendor.shopLocation?.latitude ?? null,
+                longitude: vendor.shopLocation?.longitude ?? null,
                 selectedCategoryIds: selectedPrimaryCategoryIds,
               }}
             />

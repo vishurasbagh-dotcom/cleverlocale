@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { AddVendorModalButton } from "@/components/admin/add-vendor-modal-button";
-import { AdminVendorShopToggle } from "@/components/admin/admin-vendor-shop-toggle";
 import { AdminVendorStatusForm } from "@/components/admin/admin-vendor-status-form";
 import { buildCategoryTree } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
@@ -45,7 +44,13 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
   const vendors = await prisma.vendor.findMany({
     where: {
       status: activeStatus,
-      ...(cityFilter ? { city: { equals: cityFilter, mode: "insensitive" } } : {}),
+      ...(cityFilter
+        ? {
+            shopLocation: {
+              city: { equals: cityFilter, mode: "insensitive" },
+            },
+          }
+        : {}),
       ...(q
         ? {
             OR: [
@@ -59,6 +64,8 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
     orderBy: [{ createdAt: "desc" }],
     include: {
       user: { select: { email: true, name: true } },
+      shopLocation: true,
+      certificate: true,
       sellingCategories: { include: { category: { select: { name: true } } } },
     },
   });
@@ -69,7 +76,7 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
   });
   const countMap = new Map(statusCounts.map((r) => [r.status, r._count._all]));
 
-  const cityRows = await prisma.vendor.findMany({
+  const cityRows = await prisma.vendorShopLocation.findMany({
     where: { city: { not: null } },
     select: { city: true },
     distinct: ["city"],
@@ -91,6 +98,11 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Vendors</h1>
             <p className="mt-2 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
               Review vendors by status first, then filter by city/search. Open details only when required for faster operations.
+              Approved-shop <strong>closure</strong> and <strong>featured</strong> controls live under{" "}
+              <Link href="/admin/vendor-management" className="font-medium text-emerald-800 underline dark:text-emerald-400">
+                Vendor management
+              </Link>
+              .
             </p>
           </div>
           <div className="self-start">
@@ -170,20 +182,11 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
           vendors.map((v) => (
             <article
               key={v.id}
-              className="relative rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+              className="rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             >
-              {v.status === "APPROVED" ? (
-                <div className="absolute end-3 top-3 z-10 max-w-[min(100%-1.5rem,20rem)] sm:max-w-none">
-                  <AdminVendorShopToggle vendorId={v.id} initialAdminClosed={v.isAdminShopClosed} />
-                </div>
-              ) : null}
-
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div
-                  className={`min-w-0 ${v.status === "APPROVED" ? "pe-1 sm:pe-64" : ""}`}
-                >
+                <div className="min-w-0">
                   <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{v.shopName}</h2>
-                  <p className="mt-1 font-mono text-xs text-zinc-500">/{v.slug}</p>
                   <p className="mt-2 flex flex-wrap items-center gap-2">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusPill(
@@ -192,7 +195,7 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
                     >
                       {statusLabel(v.status as (typeof STATUS_TABS)[number])}
                     </span>
-                    <span className="text-xs text-zinc-500">{v.city || "City missing"}</span>
+                    <span className="text-xs text-zinc-500">{v.shopLocation?.city || "City missing"}</span>
                     {v.status === "APPROVED" && (
                       <span className="text-xs text-zinc-500">
                         {vendorShopfrontLive(v)
@@ -206,9 +209,7 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
                     )}
                   </p>
                 </div>
-                <div
-                  className={`flex shrink-0 flex-col items-end gap-2 ${v.status === "APPROVED" ? "pt-11 sm:pt-10" : ""}`}
-                >
+                <div className="flex shrink-0 flex-col items-end gap-2">
                   <AdminVendorStatusForm
                     vendorId={v.id}
                     defaultStatus={v.status as "PENDING" | "ON_HOLD" | "APPROVED" | "REJECTED" | "SUSPENDED"}
@@ -231,7 +232,15 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
                   <div>
                     <p className="font-medium text-zinc-500">Address</p>
                     <p className="mt-1 text-zinc-800 dark:text-zinc-200">
-                      {[v.addressLine1, v.addressLine2, v.locality, v.city, v.pincode].filter(Boolean).join(", ") || "—"}
+                      {[
+                        v.shopLocation?.addressLine1,
+                        v.shopLocation?.addressLine2,
+                        v.shopLocation?.locality,
+                        v.shopLocation?.city,
+                        v.shopLocation?.pincode,
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "—"}
                     </p>
                   </div>
                   <div>
@@ -244,12 +253,12 @@ export default async function AdminVendorsPage({ searchParams }: Props) {
                   </div>
                   <div>
                     <p className="font-medium text-zinc-500">Verification document</p>
-                    {v.certificateStoredName ? (
+                    {v.certificate?.storedName ? (
                       <Link
                         href={`/api/admin/vendor-certificate/${v.id}`}
                         className="mt-1 inline-flex text-sm font-medium text-emerald-700 underline-offset-4 hover:underline dark:text-emerald-400"
                       >
-                        Download — {v.certificateOriginalName ?? "uploaded file"}
+                        Download — {v.certificate.originalName ?? "uploaded file"}
                       </Link>
                     ) : (
                       <p className="mt-1 text-zinc-400">No file uploaded</p>

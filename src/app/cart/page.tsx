@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { CartLines } from "@/components/cart-lines";
 import { storefrontVendorSelect } from "@/lib/marketplace-vendor";
 import { prisma } from "@/lib/prisma";
+import { variantUnitPaise } from "@/lib/product-display";
 import { formatInr } from "@/lib/money";
 
 export default async function CartPage() {
@@ -13,12 +14,22 @@ export default async function CartPage() {
   const cart = await prisma.cart.findUnique({
     where: { userId: session.user.id },
     include: {
-      items: { include: { product: { include: { vendor: { select: storefrontVendorSelect } } } } },
+      items: {
+        include: {
+          product: { include: { vendor: { select: storefrontVendorSelect } } },
+          productVariant: true,
+        },
+      },
     },
   });
 
   const lines = cart?.items ?? [];
-  const subtotalPaise = lines.reduce((sum, l) => sum + l.product.pricePaise * l.quantity, 0);
+  const subtotalPaise = lines.reduce((sum, l) => {
+    const unit = l.productVariant
+      ? variantUnitPaise(l.product, l.productVariant)
+      : variantUnitPaise(l.product, { pricePaise: null });
+    return sum + unit * l.quantity;
+  }, 0);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">

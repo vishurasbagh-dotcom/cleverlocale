@@ -11,5 +11,5 @@ export function HeaderCatalogSearch({ categories }: { categories: CatalogSearchC
   if (pathname === "/login" || pathname.startsWith("/admin") || pathname.startsWith("/vendor")) {
     return null;
   }
-  return <CatalogSearch categories={categories} />;
+  return <CatalogSearch categories={categories} className="max-w-none" />;
 }

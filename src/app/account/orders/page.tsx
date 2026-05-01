@@ -42,7 +42,11 @@ export default async function OrdersPage() {
                 {o.lines.map((l) => (
                   <li key={l.id} className="flex justify-between gap-4">
                     <span>
-                      {l.productName} × {l.quantity}
+                      {l.productName}
+                      {l.variantSummary ? (
+                        <span className="mt-0.5 block text-xs text-zinc-500">{l.variantSummary}</span>
+                      ) : null}
+                      <span className="text-zinc-500"> × {l.quantity}</span>
                     </span>
                     <span>{formatInr(l.lineTotalPaise)}</span>
                   </li>

@@ -44,7 +44,7 @@ export function CatalogSearch({ categories, className = "" }: CatalogSearchProps
     <form
       action="/products"
       method="get"
-      className={`flex h-11 w-full min-w-0 max-w-3xl overflow-hidden rounded-md border border-zinc-400 bg-white shadow-sm outline-none focus-within:ring-2 focus-within:ring-[#febd69]/70 ${className}`}
+      className={`flex h-11 w-full min-w-0 overflow-hidden rounded-md border border-zinc-400 bg-white shadow-sm outline-none focus-within:ring-2 focus-within:ring-[#febd69]/70 ${className}`}
       role="search"
     >
       <label htmlFor="catalog-category" className="sr-only">

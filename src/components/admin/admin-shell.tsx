@@ -27,6 +27,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       mobileLinks={[
         { href: "/admin", label: "Dashboard" },
         { href: "/admin/categories", label: "Categories" },
+        { href: "/admin/vendors", label: "Vendors" },
+        { href: "/admin/vendor-management", label: "Vendor mgmt" },
         { href: "/admin/orders", label: "Orders" },
       ]}
       sections={[
@@ -42,6 +44,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           section: "Operations",
           items: [
             { href: "/admin/vendors", label: "Vendors", icon: "shop" },
+            { href: "/admin/vendor-management", label: "Vendor management", icon: "star" },
             { href: "/admin/orders", label: "Orders", icon: "cart" },
             { href: "/admin/users", label: "Users", icon: "users", soon: true },
           ],

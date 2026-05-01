@@ -38,6 +38,11 @@ export function buildCategoryTree(rows: CategoryRow[]): CategoryTreeNode[] {
 
 export type CatalogOption = { slug: string; label: string };
 
+/** Root-level categories only (for header search dropdown — no subcategories). */
+export function flattenPrimaryCategoryOptions(nodes: CategoryTreeNode[]): CatalogOption[] {
+  return nodes.map((n) => ({ slug: n.slug, label: n.name }));
+}
+
 /** Every category appears once, depth-first, with a breadcrumb-style label for the storefront search. */
 export function flattenCategoryOptions(nodes: CategoryTreeNode[], prefix = ""): CatalogOption[] {
   const out: CatalogOption[] = [];

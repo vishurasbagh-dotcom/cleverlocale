@@ -1,0 +1,30 @@
+# Local PostgreSQL for Cleverlocale (Docker Desktop).
+# Usage:
+#   npm run docker:up
+#   Set DATABASE_URL in .env (see env.example → Docker section), then:
+#   npx prisma migrate deploy && npm run db:seed
+#   npm run docker:down
+#
+# Host port 5433 avoids clashing with a local Postgres on 5432 (common on Mac).
+# To use a different host port, change the left side only, e.g. "5434:5432".
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cleverlocale
+      POSTGRES_PASSWORD: cleverlocale
+      POSTGRES_DB: cleverlocale
+    ports:
+      - "5433:5432"
+    volumes:
+      - cleverlocale_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cleverlocale -d cleverlocale"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cleverlocale_pgdata:

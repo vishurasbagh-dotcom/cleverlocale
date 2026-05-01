@@ -1,16 +1,31 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loginWithCredentials, type LoginState } from "@/actions/login";
 
 const DEMO = {
-  customer: { email: "user1@cleverlocale.local", password: "cl@123", label: "Customer / User" },
-  vendor: { email: "vendor1@cleverlocale.local", password: "cl@123", label: "Vendor" },
-  admin: { email: "admin1@cleverlocale.local", password: "cl@123", label: "Admin" },
+  customer: { email: "user1@cleverlocale.local", password: "cl@123", label: "Customer" },
+    vendor: { email: "mumbai-masala-mart@cleverlocale.local", password: "cl@123", label: "Vendor" },
+  admin: { email: "admin1@cleverlocale.local", password: "cl@123", label: "CL Admin" },
 } as const;
 
-type LoginKind = "" | keyof typeof DEMO;
+type LoginKind = keyof typeof DEMO;
+
+function parseLoginKind(v: string | undefined): LoginKind | null {
+  if (v === "customer" || v === "vendor" || v === "admin") return v;
+  return null;
+}
+
+function resolveKind(kind: string | undefined): LoginKind {
+  return parseLoginKind(kind) ?? "customer";
+}
+
+function stateForKind(k: LoginKind): { kind: LoginKind; email: string; password: string } {
+  const row = DEMO[k];
+  return { kind: k, email: row.email, password: row.password };
+}
 
 function defaultTargetForRole(role: LoginKind): string {
   if (role === "admin") return "/admin";
@@ -31,20 +46,32 @@ function normalizeCallbackUrl(input: string | undefined): string | null {
   }
 }
 
+const ROLE_ORDER: LoginKind[] = ["customer", "vendor", "admin"];
+
 export function LoginForm({
   callbackUrl,
   vendorRegistered,
+  initialKind,
 }: {
   callbackUrl?: string;
-  /** After vendor application without prior account — prompt to use business credentials. */
   vendorRegistered?: boolean;
+  initialKind?: string;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(loginWithCredentials, {} as LoginState);
-  const [loginKind, setLoginKind] = useState<LoginKind>("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const init = stateForKind(resolveKind(vendorRegistered ? "vendor" : initialKind));
+  const [loginKind, setLoginKind] = useState<LoginKind>(init.kind);
+  const [email, setEmail] = useState(init.email);
+  const [password, setPassword] = useState(init.password);
   const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
+
+  useEffect(() => {
+    const k = resolveKind(vendorRegistered ? "vendor" : initialKind);
+    const next = stateForKind(k);
+    setLoginKind(next.kind);
+    setEmail(next.email);
+    setPassword(next.password);
+  }, [initialKind, vendorRegistered]);
 
   useEffect(() => {
     const target = normalizedCallbackUrl || defaultTargetForRole(loginKind);
@@ -65,6 +92,13 @@ export function LoginForm({
     window.location.assign(state.redirectTo);
   }, [state.redirectTo, router]);
 
+  function selectRole(k: LoginKind) {
+    setLoginKind(k);
+    const row = DEMO[k];
+    setEmail(row.email);
+    setPassword(row.password);
+  }
+
   return (
     <div
       className="flex flex-col gap-4 rounded-2xl border-2 border-emerald-600 bg-white p-6 shadow-xl shadow-emerald-900/10 ring-4 ring-emerald-500/15 dark:border-emerald-500 dark:bg-zinc-950 dark:ring-emerald-400/20"
@@ -79,36 +113,28 @@ export function LoginForm({
       <h2 id="login-panel-title" className="sr-only">
         Sign in to Cleverlocale
       </h2>
-      <div className="flex flex-col gap-2">
-        <label htmlFor="login-as" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Sign in as
-        </label>
-        <select
-          id="login-as"
-          name="loginAs"
-          value={loginKind}
-          onChange={(e) => {
-            const selected = e.target.value as LoginKind;
-            setLoginKind(selected);
-            if (!selected) return;
-            const row = DEMO[selected];
-            setEmail(row.email);
-            setPassword(row.password);
-          }}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none ring-0 focus:outline-none focus:ring-0 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-        >
-          <option value="">Choose…</option>
-          <option value="customer">Login as Customer / User</option>
-          <option value="vendor">Login as Vendor</option>
-          <option value="admin">Login as Admin</option>
-        </select>
-        <p className="text-xs text-zinc-600 dark:text-zinc-400">
-          Fills demo account <code className="rounded bg-zinc-100 px-1 text-[0.8rem] dark:bg-zinc-900">user1@</code> /{" "}
-          <code className="rounded bg-zinc-100 px-1 text-[0.8rem] dark:bg-zinc-900">vendor1@</code> /{" "}
-          <code className="rounded bg-zinc-100 px-1 text-[0.8rem] dark:bg-zinc-900">admin1@</code> — password{" "}
-          <code className="rounded bg-zinc-100 px-1 text-[0.8rem] dark:bg-zinc-900">cl@123</code>. You can edit before signing in.
-        </p>
-      </div>
+
+      <fieldset className="border-0 p-0">
+        <legend className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Account type</legend>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          {ROLE_ORDER.map((value) => (
+            <label
+              key={value}
+              className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-900 dark:text-zinc-100"
+            >
+              <input
+                type="radio"
+                name="accountTypeUi"
+                value={value}
+                checked={loginKind === value}
+                onChange={() => selectRole(value)}
+                className="size-4 shrink-0 border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-900"
+              />
+              {DEMO[value].label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <form action={formAction} className="flex flex-col gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
         <input type="hidden" name="callbackUrl" value={normalizedCallbackUrl || ""} readOnly />
@@ -146,6 +172,18 @@ export function LoginForm({
           {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
+
+      {loginKind === "customer" ? (
+        <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
+          New customer?{" "}
+          <Link
+            href="/register"
+            className="font-medium text-emerald-800 underline-offset-4 hover:underline dark:text-emerald-400"
+          >
+            Create an account
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }

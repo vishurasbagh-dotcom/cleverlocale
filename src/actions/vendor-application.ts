@@ -59,17 +59,21 @@ async function createVendorRecord(params: {
       status: "PENDING",
       isShopOpen: false,
       shopDescription: data.shopDescription?.trim() || null,
-      addressLine1: data.addressLine1.trim(),
-      addressLine2: data.addressLine2?.trim() || null,
-      locality: data.locality.trim(),
-      city: data.city.trim(),
-      pincode: data.pincode.trim(),
-      latitude: lat,
-      longitude: lng,
+      correctionNotes: null,
+      shopLocation: {
+        create: {
+          addressLine1: data.addressLine1.trim(),
+          addressLine2: data.addressLine2?.trim() || null,
+          locality: data.locality.trim(),
+          city: data.city.trim(),
+          pincode: data.pincode.trim(),
+          latitude: lat,
+          longitude: lng,
+        },
+      },
       sellingCategories: {
         create: categoryIds.map((categoryId) => ({ categoryId })),
       },
-      correctionNotes: null,
     },
   });
 
@@ -77,12 +81,12 @@ async function createVendorRecord(params: {
     try {
       const saved = await saveVendorCertificate(vendor.id, certFile);
       if (saved) {
-        await prisma.vendor.update({
-          where: { id: vendor.id },
+        await prisma.vendorCertificate.create({
           data: {
-            certificateStoredName: saved.storedName,
-            certificateOriginalName: saved.originalName,
-            certificateMimeType: saved.mimeType,
+            vendorId: vendor.id,
+            storedName: saved.storedName,
+            originalName: saved.originalName,
+            mimeType: saved.mimeType,
           },
         });
       }
@@ -188,13 +192,17 @@ export async function submitVendorApplication(
             status: "PENDING",
             isShopOpen: false,
             shopDescription: data.shopDescription?.trim() || null,
-            addressLine1: data.addressLine1.trim(),
-            addressLine2: data.addressLine2?.trim() || null,
-            locality: data.locality.trim(),
-            city: data.city.trim(),
-            pincode: data.pincode.trim(),
-            latitude: lat,
-            longitude: lng,
+            shopLocation: {
+              create: {
+                addressLine1: data.addressLine1.trim(),
+                addressLine2: data.addressLine2?.trim() || null,
+                locality: data.locality.trim(),
+                city: data.city.trim(),
+                pincode: data.pincode.trim(),
+                latitude: lat,
+                longitude: lng,
+              },
+            },
             sellingCategories: {
               create: categoryIds.map((categoryId) => ({ categoryId })),
             },
@@ -207,12 +215,12 @@ export async function submitVendorApplication(
         try {
           const saved = await saveVendorCertificate(newVendorId, certFile);
           if (saved) {
-            await prisma.vendor.update({
-              where: { id: newVendorId },
+            await prisma.vendorCertificate.create({
               data: {
-                certificateStoredName: saved.storedName,
-                certificateOriginalName: saved.originalName,
-                certificateMimeType: saved.mimeType,
+                vendorId: newVendorId,
+                storedName: saved.storedName,
+                originalName: saved.originalName,
+                mimeType: saved.mimeType,
               },
             });
           }
@@ -284,13 +292,28 @@ export async function submitVendorApplication(
             status: isApprovedDetailsUpdate ? "APPROVED" : "PENDING",
             isShopOpen: isApprovedDetailsUpdate ? existingVendor.isShopOpen : false,
             shopDescription: data.shopDescription?.trim() || null,
-            addressLine1: data.addressLine1.trim(),
-            addressLine2: data.addressLine2?.trim() || null,
-            locality: data.locality.trim(),
-            city: data.city.trim(),
-            pincode: data.pincode.trim(),
-            latitude: lat,
-            longitude: lng,
+            shopLocation: {
+              upsert: {
+                create: {
+                  addressLine1: data.addressLine1.trim(),
+                  addressLine2: data.addressLine2?.trim() || null,
+                  locality: data.locality.trim(),
+                  city: data.city.trim(),
+                  pincode: data.pincode.trim(),
+                  latitude: lat,
+                  longitude: lng,
+                },
+                update: {
+                  addressLine1: data.addressLine1.trim(),
+                  addressLine2: data.addressLine2?.trim() || null,
+                  locality: data.locality.trim(),
+                  city: data.city.trim(),
+                  pincode: data.pincode.trim(),
+                  latitude: lat,
+                  longitude: lng,
+                },
+              },
+            },
             sellingCategories: {
               create: categoryIds.map((categoryId) => ({ categoryId })),
             },
@@ -306,12 +329,18 @@ export async function submitVendorApplication(
       if (certFile instanceof File && certFile.size > 0) {
         const saved = await saveVendorCertificate(existingVendor.id, certFile);
         if (saved) {
-          await prisma.vendor.update({
-            where: { id: existingVendor.id },
-            data: {
-              certificateStoredName: saved.storedName,
-              certificateOriginalName: saved.originalName,
-              certificateMimeType: saved.mimeType,
+          await prisma.vendorCertificate.upsert({
+            where: { vendorId: existingVendor.id },
+            create: {
+              vendorId: existingVendor.id,
+              storedName: saved.storedName,
+              originalName: saved.originalName,
+              mimeType: saved.mimeType,
+            },
+            update: {
+              storedName: saved.storedName,
+              originalName: saved.originalName,
+              mimeType: saved.mimeType,
             },
           });
         }
